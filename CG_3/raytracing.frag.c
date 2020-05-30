@@ -270,11 +270,11 @@ void InitializeDefaultScene() {
 
 void InitializeDefaultLightMaterials() {
     //** LIGHTS **//
-    lights[0].Position = vec3(4.0, 1.0, -2.0);
+    lights[0].Position = vec3(4.0, 3.0, -2.0);
     lights[0].Color = vec3(1.0, 1.0, 0.82);
     lights[0].Intensity = 0.6;
 
-    lights[1].Position = vec3(-4.0, -3.0, -4.0);
+    lights[1].Position = vec3(-3.0, -2.0, -4.0);
     lights[1].Color = vec3(1.0, 0.85, 0.7);
     lights[1].Intensity = 0.3;
 
@@ -317,7 +317,7 @@ void InitializeDefaultLightMaterials() {
     materials[5].RefractIndice = 1.0;
 
     materials[6].Color = vec3(1.0, 1.0, 1.0);
-    materials[6].LightCoeffs = vec4(0.2, 0.5, 0.9, 16.0);
+    materials[6].LightCoeffs = vec4(0.2, 0.5, 0.9, 1024.0);
     materials[6].ReflectionCoef = 0.8;
     materials[6].RefractionCoef = 0.0;
     materials[6].RefractIndice = 1.0;
@@ -325,8 +325,8 @@ void InitializeDefaultLightMaterials() {
     materials[7].Color = vec3(1.0, 1.0, 1.0);
     materials[7].LightCoeffs = vec4(0.2, 0.5, 0.9, 16.0);
     materials[7].ReflectionCoef = 0.0;
-    materials[7].RefractionCoef = 0.9;
-    materials[7].RefractIndice = 5.3;
+    materials[7].RefractionCoef = 0.7;
+    materials[7].RefractIndice = 2.0;
 }
 
 SRay GenerateRay() {
