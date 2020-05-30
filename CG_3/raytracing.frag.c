@@ -16,6 +16,7 @@ struct SCamera {
 struct SRay {
     vec3 Origin;
     vec3 Direction;
+    float RefractIndice;
 };
 
 struct STracingRay
@@ -32,25 +33,25 @@ struct SIntersection {
     vec3 Color;
     // ambient, diffuse and specular coeffs
     vec4 LightCoeffs;
-    // 0 - non-reflection, 1 - mirror
     float ReflectionCoef;
     float RefractionCoef;
-    int MaterialType;
+    float RefractIndice;
 };
 
 struct SMaterial {
     vec3 Color;
     // ambient, diffuse and specular coeffs
     vec4 LightCoeffs;
-    // 0 - non-reflection, 1 - mirror
     float ReflectionCoef;
     float RefractionCoef;
-    int MaterialType;
+    float RefractIndice;
 };
 
 struct SLight
 {
     vec3 Position;
+    vec3 Color;
+    float Intensity;
 };
 
 struct STriangle {
@@ -87,14 +88,12 @@ bool IsEmpty() {
 #define EPSILON 0.001
 #define BIG 1000000.0
 
-const int DIFFUSE_REFLECTION = 1;
-const int MIRROR_REFLECTION = 2;
-const int REFRACTION = 3;
+int TraceDepth = 100;
 
 SCamera uCamera;
-SMaterial materials[6];
-SLight light;
-STriangle triangles[10];
+SMaterial materials[8];
+SLight lights[2];
+STriangle triangles[16];
 SSphere spheres[2];
 
 /*** INTERSECTIONS ***/
@@ -159,11 +158,12 @@ bool IntersectTriangle(SRay ray, STriangle triangle, out float time) {
 SCamera InitializeDefaultCamera() {
     //** CAMERA **//
     SCamera camera;
-    camera.Position = vec3(0.0, 0.0, -8.0);
+    camera.Position = vec3(1.0, 0.0, -4.99);
     camera.View = vec3(0.0, 0.0, 1.0);
     camera.Up = vec3(0.0, 1.0, 0.0);
-    camera.Side = vec3(1.0, 0.0, 0.0);
-    camera.Scale = vec2(1.0);
+    camera.Side = vec3(1.778, 0.0, 0.0);
+    float mult = 1.0;
+    camera.Scale = vec2(mult * 1.0, mult * 1.0);
     return camera;
 }
 
@@ -174,90 +174,165 @@ void InitializeDefaultScene() {
     triangles[0].v1 = vec3(-5.0, -5.0, -5.0);
     triangles[0].v2 = vec3(-5.0, -5.0, 5.0);
     triangles[0].v3 = vec3(-5.0, 5.0, -5.0);
-    triangles[0].MaterialIdx = 1;
+    triangles[0].MaterialIdx = 0;
 
     triangles[1].v1 = vec3(-5.0, 5.0, 5.0);
-    triangles[1].v2 = vec3(-5.0, -5.0, 5.0);
-    triangles[1].v3 = vec3(-5.0, 5.0, -5.0);
-    triangles[1].MaterialIdx = 1;
+    triangles[1].v2 = vec3(-5.0, 5.0, -5.0);
+    triangles[1].v3 = vec3(-5.0, -5.0, 5.0);
+    triangles[1].MaterialIdx = 0;
 
     /* right wall */
     triangles[2].v1 = vec3(5.0, -5.0, -5.0);
-    triangles[2].v2 = vec3(5.0, -5.0, 5.0);
-    triangles[2].v3 = vec3(5.0, 5.0, -5.0);
-    triangles[2].MaterialIdx = 0;
+    triangles[2].v2 = vec3(5.0, 5.0, -5.0);
+    triangles[2].v3 = vec3(5.0, -5.0, 5.0);
+    triangles[2].MaterialIdx = 6;
 
     triangles[3].v1 = vec3(5.0, 5.0, 5.0);
     triangles[3].v2 = vec3(5.0, -5.0, 5.0);
     triangles[3].v3 = vec3(5.0, 5.0, -5.0);
-    triangles[3].MaterialIdx = 0;
+    triangles[3].MaterialIdx = 6;
 
     /* up wall */
     triangles[4].v1 = vec3(-5.0, 5.0, -5.0);
     triangles[4].v2 = vec3(-5.0, 5.0, 5.0);
     triangles[4].v3 = vec3(5.0, 5.0, -5.0);
-    triangles[4].MaterialIdx = 0;
+    triangles[4].MaterialIdx = 2;
 
     triangles[5].v1 = vec3(5.0, 5.0, 5.0);
-    triangles[5].v2 = vec3(-5.0, 5.0, 5.0);
-    triangles[5].v3 = vec3(5.0, 5.0, -5.0);
-    triangles[5].MaterialIdx = 0;
+    triangles[5].v2 = vec3(5.0, 5.0, -5.0);
+    triangles[5].v3 = vec3(-5.0, 5.0, 5.0);
+    triangles[5].MaterialIdx = 2;
 
     /* down wall */
     triangles[6].v1 = vec3(-5.0, -5.0, -5.0);
-    triangles[6].v2 = vec3(-5.0, -5.0, 5.0);
-    triangles[6].v3 = vec3(5.0, -5.0, -5.0);
-    triangles[6].MaterialIdx = 0;
+    triangles[6].v2 = vec3(5.0, -5.0, -5.0);
+    triangles[6].v3 = vec3(-5.0, -5.0, 5.0);
+    triangles[6].MaterialIdx = 3;
 
     triangles[7].v1 = vec3(5.0, -5.0, 5.0);
     triangles[7].v2 = vec3(-5.0, -5.0, 5.0);
     triangles[7].v3 = vec3(5.0, -5.0, -5.0);
-    triangles[7].MaterialIdx = 0;
+    triangles[7].MaterialIdx = 3;
 
     /* front wall */
     triangles[8].v1 = vec3(-5.0, -5.0, 5.0);
-    triangles[8].v2 = vec3(-5.0, 5.0, 5.0);
-    triangles[8].v3 = vec3(5.0, -5.0, 5.0);
-    triangles[8].MaterialIdx = 0;
+    triangles[8].v2 = vec3(5.0, -5.0, 5.0);
+    triangles[8].v3 = vec3(-5.0, 5.0, 5.0);
+    triangles[8].MaterialIdx = 1;
 
     triangles[9].v1 = vec3(5.0, 5.0, 5.0);
     triangles[9].v2 = vec3(-5.0, 5.0, 5.0);
     triangles[9].v3 = vec3(5.0, -5.0, 5.0);
-    triangles[9].MaterialIdx = 0;
+    triangles[9].MaterialIdx = 1;
+
+    /* back wall */
+    triangles[10].v1 = vec3(-5.0, -5.0, -5.0);
+    triangles[10].v2 = vec3(-5.0, 5.0, -5.0);
+    triangles[10].v3 = vec3(5.0, -5.0, -5.0);
+    triangles[10].MaterialIdx = 5;
+
+    triangles[11].v1 = vec3(5.0, 5.0, -5.0);
+    triangles[11].v2 = vec3(5.0, -5.0, -5.0);
+    triangles[11].v3 = vec3(-5.0, 5.0, -5.0);
+    triangles[11].MaterialIdx = 5;
 
 
     /** SPHERES **/
-    spheres[0].Center = vec3(-1.0, -1.0, -2.0);
+    spheres[0].Center = vec3(-2.0, -1.0, -1.0);
     spheres[0].Radius = 2.0;
-    spheres[0].MaterialIdx = 0;
+    spheres[0].MaterialIdx = 7;
 
     spheres[1].Center = vec3(2.0, 1.0, 2.0);
     spheres[1].Radius = 1.0;
-    spheres[1].MaterialIdx = 0;
+    spheres[1].MaterialIdx = 6;
+
+    /** TETRAHEDRON **/
+    triangles[12].v2 = vec3(2, -4.0, -0.5);
+    triangles[12].v1 = vec3(0, -4.0, 3);
+    triangles[12].v3 = vec3(4, -4.0, 3);
+    triangles[12].MaterialIdx = 6;
+
+    triangles[13].v2 = vec3(2, -0.5, 1.75);
+    triangles[13].v1 = vec3(0, -4.0, 3);
+    triangles[13].v3 = vec3(4, -4.0, 3);
+    triangles[13].MaterialIdx = 6;
+
+    triangles[14].v1 = vec3(2, -4.0, -0.5);
+    triangles[14].v2 = vec3(2, -0.5, 1.75);
+    triangles[14].v3 = vec3(4, -4.0, 3);
+    triangles[14].MaterialIdx = 6;
+
+    triangles[15].v2 = vec3(2, -4.0, -0.5);
+    triangles[15].v1 = vec3(0, -4.0, 3);
+    triangles[15].v3 = vec3(2, -0.5, 1.75);
+    triangles[15].MaterialIdx = 6;
 }
 
 void InitializeDefaultLightMaterials() {
-    //** LIGHT **//
-    light.Position = vec3(0.0, 2.0, -4.0f);
-    /** MATERIALS **/
-    vec4 lightCoefs = vec4(0.4, 0.9, 0.0, 512.0);
-    materials[0].Color = vec3(0.0, 1.0, 0.0);
-    materials[0].LightCoeffs = lightCoefs;
-    materials[0].ReflectionCoef = 1.0;
-    materials[0].RefractionCoef = 1.0;
-    materials[0].MaterialType = DIFFUSE_REFLECTION;
+    //** LIGHTS **//
+    lights[0].Position = vec3(4.0, 1.0, -2.0);
+    lights[0].Color = vec3(1.0, 1.0, 0.82);
+    lights[0].Intensity = 0.6;
 
-    materials[1].Color = vec3(0.0, 0.0, 1.0);
-    materials[1].LightCoeffs = lightCoefs;
+    lights[1].Position = vec3(-4.0, -3.0, -4.0);
+    lights[1].Color = vec3(1.0, 0.85, 0.7);
+    lights[1].Intensity = 0.3;
+
+    /** MATERIALS **/
+    vec4 lightCoeffs = vec4(0.4, 0.9, 0.2, 512.0);
+    materials[0].Color = vec3(0.715, 0.109, 0.109);
+    materials[0].LightCoeffs = lightCoeffs;
+    materials[0].ReflectionCoef = 0.0;
+    materials[0].RefractionCoef = 0.0;
+    materials[0].RefractIndice = 1.0;
+
+    materials[1].Color = vec3(0.645, 0.836, 0.652);
+    materials[1].LightCoeffs = lightCoeffs;
     materials[1].ReflectionCoef = 0.0;
     materials[1].RefractionCoef = 0.0;
-    materials[1].MaterialType = DIFFUSE_REFLECTION;
+    materials[1].RefractIndice = 1.0;
+
+    materials[2].Color = vec3(0.621, 0.656, 0.852);
+    materials[2].LightCoeffs = lightCoeffs;
+    materials[2].ReflectionCoef = 0.0;
+    materials[2].RefractionCoef = 0.0;
+    materials[2].RefractIndice = 1.0;
+
+    materials[3].Color = vec3(1.0, 1.0, 0.0);
+    materials[3].LightCoeffs = lightCoeffs;
+    materials[3].ReflectionCoef = 0.0;
+    materials[3].RefractionCoef = 0.0;
+    materials[3].RefractIndice = 1.0;
+
+    materials[4].Color = vec3(0.0, 1.0, 1.0);
+    materials[4].LightCoeffs = lightCoeffs;
+    materials[4].ReflectionCoef = 0.0;
+    materials[4].RefractionCoef = 0.0;
+    materials[4].RefractIndice = 1.0;
+
+    materials[5].Color = vec3(1.0, 0.0, 1.0);
+    materials[5].LightCoeffs = lightCoeffs;
+    materials[5].ReflectionCoef = 0.0;
+    materials[5].RefractionCoef = 0.0;
+    materials[5].RefractIndice = 1.0;
+
+    materials[6].Color = vec3(1.0, 1.0, 1.0);
+    materials[6].LightCoeffs = vec4(0.2, 0.5, 0.9, 16.0);
+    materials[6].ReflectionCoef = 0.8;
+    materials[6].RefractionCoef = 0.0;
+    materials[6].RefractIndice = 1.0;
+
+    materials[7].Color = vec3(1.0, 1.0, 1.0);
+    materials[7].LightCoeffs = vec4(0.2, 0.5, 0.9, 16.0);
+    materials[7].ReflectionCoef = 0.0;
+    materials[7].RefractionCoef = 0.9;
+    materials[7].RefractIndice = 5.3;
 }
 
 SRay GenerateRay() {
     vec2 coords = glPosition.xy * uCamera.Scale;
     vec3 direction = uCamera.View + uCamera.Side * coords.x + uCamera.Up * coords.y;
-    return SRay(uCamera.Position, normalize(direction));
+    return SRay(uCamera.Position, normalize(direction), 1.0);
 }
 
 bool Raytrace(SRay ray, float start, float final, inout SIntersection intersect) {
@@ -265,68 +340,80 @@ bool Raytrace(SRay ray, float start, float final, inout SIntersection intersect)
     float test = start;
     intersect.Time = final;
     //calculate intersect with spheres
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < 2; ++i) {
         SSphere sphere = spheres[i];
         if (IntersectSphere(sphere, ray, start, final, test) && test < intersect.Time) {
             intersect.Time = test;
             intersect.Point = ray.Origin + ray.Direction * test;
             intersect.Normal = normalize(intersect.Point - spheres[i].Center);
-            intersect.Color = vec3(1, 0, 0);
-            intersect.LightCoeffs = vec4(0, 0, 0, 0);
-            intersect.ReflectionCoef = 0;
-            intersect.RefractionCoef = 0;
-            intersect.MaterialType = DIFFUSE_REFLECTION;
+
+            SMaterial curMat = materials[spheres[i].MaterialIdx];
+            intersect.Color = curMat.Color;
+            intersect.LightCoeffs = curMat.LightCoeffs;
+            intersect.ReflectionCoef = curMat.ReflectionCoef;
+            intersect.RefractionCoef = curMat.RefractionCoef;
+            if (dot(ray.Direction, intersect.Normal) > 0) {
+                intersect.Normal = -intersect.Normal;
+                intersect.RefractIndice = 1.0;
+            } else {
+                intersect.RefractIndice = curMat.RefractIndice;
+            }
             result = true;
         }
     }
     //calculate intersect with triangles
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 16; ++i) {
         if (IntersectTriangle(ray, triangles[i], test) && test < intersect.Time) {
             intersect.Time = test;
             intersect.Point = ray.Origin + ray.Direction * test;
             intersect.Normal = normalize(cross(triangles[i].v1 - triangles[i].v2,
                 triangles[i].v3 - triangles[i].v2));
-            intersect.Color = vec3(1, 0, 0);
-            intersect.LightCoeffs = vec4(0, 0, 0, 0);
-            intersect.ReflectionCoef = 0;
-            intersect.RefractionCoef = 0;
-            intersect.MaterialType = DIFFUSE_REFLECTION;
+
+            SMaterial curMat = materials[triangles[i].MaterialIdx];
+            intersect.Color = curMat.Color;
+            intersect.LightCoeffs = curMat.LightCoeffs;
+            intersect.ReflectionCoef = curMat.ReflectionCoef;
+            intersect.RefractionCoef = curMat.RefractionCoef;
+            intersect.RefractIndice = 1.0;
             result = true;
         }
     }
     return result;
 }
 
-vec3 Phong(SIntersection intersect, SLight currLight, float shadow) {
-    vec3 light = normalize(currLight.Position - intersect.Point);
-    float diffuse = max(dot(light, intersect.Normal), 0.0);
-    vec3 view = normalize(uCamera.Position - intersect.Point);
-    vec3 reflected = reflect(-view, intersect.Normal);
-    float specular = pow(max(dot(reflected, light), 0.0), intersect.LightCoeffs.w);
-    return intersect.LightCoeffs.x * intersect.Color +
-        intersect.LightCoeffs.y * diffuse * intersect.Color * shadow +
-        intersect.LightCoeffs.z * specular;
-}
-
-float Shadow(SLight curLight, SIntersection intersect) {
+float Shadow(SIntersection intersect, int lightNumber) {
     // Point is lighted
     float shadowing = 1.0;
     // Vector to the light source
-    vec3 direction = normalize(curLight.Position - intersect.Point);
+    vec3 direction = normalize(lights[lightNumber].Position - intersect.Point);
     // Distance to the light source
-    float distanceLight = distance(curLight.Position, intersect.Point);
+    float distanceLight = distance(lights[lightNumber].Position, intersect.Point);
     // Generation shadow ray for this light source
-    SRay shadowRay = SRay(intersect.Point + direction * EPSILON, direction);
+    SRay shadowRay = SRay(intersect.Point + direction * EPSILON, direction, 1.0);
     // ...test intersection this ray with each scene object
     SIntersection shadowIntersect;
     shadowIntersect.Time = BIG;
     // trace ray from shadow ray begining to light source position
     if (Raytrace(shadowRay, 0, distanceLight, shadowIntersect)) {
-    // this light source is invisible in the intercection point
-        if (shadowIntersect.MaterialType != REFRACTION)
-            shadowing = 0.0;
+        // this light source is invisible in the intercection point
+        shadowing = 0.0;
     }
     return shadowing;
+}
+
+vec3 Phong(SIntersection intersect) {
+    vec3 result = vec3(0.0, 0.0, 0.0);
+    for (int i = 0; i < 2; ++i) {
+        vec3 light = normalize(lights[i].Position - intersect.Point);
+        float diffuse = max(dot(light, intersect.Normal), 0.0);
+        vec3 view = normalize(uCamera.Position - intersect.Point);
+        vec3 reflected = reflect(-view, intersect.Normal);
+        float specular = pow(max(dot(reflected, light), 0.0), intersect.LightCoeffs.w);
+        result += lights[i].Intensity * (intersect.LightCoeffs.x * intersect.Color * lights[i].Color +
+            intersect.LightCoeffs.y * diffuse * intersect.Color * lights[i].Color * Shadow(intersect, i) +
+            intersect.LightCoeffs.z * specular);
+    }
+    return result;
 }
 
 void main(void)
@@ -351,29 +438,28 @@ void main(void)
         float final = BIG;
 
         if (Raytrace(ray, start, final, intersect)) {
-            switch (intersect.MaterialType)
-            {
-            case DIFFUSE_REFLECTION: {
-                float shadowing = Shadow(light, intersect);
-                resultColor += curRay.Contrib * Phong(intersect, light, shadowing);
-                break;
-            }
-            case MIRROR_REFLECTION: {
-                if (intersect.ReflectionCoef < 1) {
-                    float contribution = curRay.Contrib * (1 - intersect.ReflectionCoef);
-                    float shadowing = Shadow(light, intersect);
-                    resultColor += contribution * Phong(intersect, light, shadowing);
-                }
+            float contribution = curRay.Contrib * (1.0 - intersect.ReflectionCoef - intersect.RefractionCoef);
+            resultColor += contribution * Phong(intersect);
+
+            if (intersect.ReflectionCoef > 0) {
                 vec3 reflectDirection = reflect(ray.Direction, intersect.Normal);
-                // creare reflection ray
                 float contribution = curRay.Contrib * intersect.ReflectionCoef;
                 STracingRay reflectRay = STracingRay(
-                    SRay(intersect.Point + reflectDirection * EPSILON, reflectDirection),
+                    SRay(intersect.Point + reflectDirection * EPSILON, reflectDirection, 1.0),
                     contribution, curRay.Depth + 1);
-                if (reflectRay.Depth < 100)
+                if (reflectRay.Depth < TraceDepth)
                     PushRay(reflectRay);
-                break;
             }
+            if (intersect.RefractionCoef > 0) {
+                vec3 refractionDirection = refract(
+                    ray.Direction, intersect.Normal, ray.RefractIndice / intersect.RefractIndice);
+                float contribution = curRay.Contrib * intersect.RefractionCoef;
+                STracingRay refractRay = STracingRay(
+                    SRay(intersect.Point + refractionDirection * EPSILON, refractionDirection,
+                        intersect.RefractIndice),
+                    contribution, curRay.Depth + 1);
+                if (refractRay.Depth < TraceDepth)
+                    PushRay(refractRay);
             }
         }
     }
